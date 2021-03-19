@@ -56,7 +56,7 @@ class nnLayer(VGroup):
         
 
 class LinearVisual(nnLayer):
-    def __init__(self, input_size, output_size, in_type="input", out_type="output", cap_neurons=True):
+    def __init__(self, size, layer_type="input", cap_neurons=True):
         super(LinearVisual, self).__init__()
         # Calculate max neurons that should be shown
         if cap_neurons:
@@ -64,16 +64,9 @@ class LinearVisual(nnLayer):
         else:
             self.max_neurons_shown = 2 ** 30
         # Create the input and output layers
-        self.in_layer = self.create_layer(input_size, in_type)
-        self.out_layer = self.create_layer(output_size, out_type)
-        # Move the output to the right of the input layer
-        self.out_layer.next_to(self.in_layer, RIGHT, buff=self.layer_dist)
-        # Connect the two layers with edges
-        self.edges = connect_lin_layers(self.in_layer, self.out_layer)
+        self.layer = self.create_layer(size, layer_type)
         # Add the edges, input layer, and output layer
-        self.add(self.edges)
-        self.add(self.in_layer)
-        self.add(self.out_layer)
+        self.add(self.layer)
 
     # Helper to calculate the max number of neurons
     def calc_max_neurons(self):
@@ -147,15 +140,20 @@ class NetVisual(nnLayer):
         self.net_visual = VGroup()
         self.visuals = []
         # Create all the layers
-        for layer_key in self.layers_dict:
+        for index, layer_key in enumerate(self.layers_dict):
             layer = self.layers_dict[layer_key]
             input_size = layer["input_shape"]
             output_size = layer["output_shape"]
             layer_name = layer_key.split("-")[0]
             print(layer_key)
+
             # Case for linear layer
             if layer_name == "Linear":
-                self.visuals.append(LinearVisual(input_size[0], output_size[0]))
+                self.visuals.append(LinearVisual(input_size[0]))
+                # Add the output layer if this is our final layer
+                if index == len(self.layers_dict) - 1:
+                    self.visuals.append(LinearVisual(output_size[0], layer_type="output"))
+            
         self.visuals[0].to_edge(LEFT)
         # Connect all the layers
         if len(self.visuals) == 1:
@@ -165,9 +163,9 @@ class NetVisual(nnLayer):
                 prev = self.visuals[i-1]
                 cur = self.visuals[i]
                 # Move the cur layer to right of prev layer
-                cur.next_to(prev.out_layer, RIGHT, self.layer_dist)
+                cur.next_to(prev.layer, RIGHT, self.layer_dist)
                 if isinstance(prev, LinearVisual) and isinstance(cur, LinearVisual):
-                    edges = connect_lin_layers(prev.out_layer, cur.in_layer)
+                    edges = connect_lin_layers(prev.layer, cur.layer)
                     self.net_visual.add(*[edges, prev, cur])
         
 class nnVisual(Scene):
