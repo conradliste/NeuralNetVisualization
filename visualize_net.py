@@ -21,7 +21,7 @@ def connect_lin_layers(src_layer, dest_layer):
     for src_neuron in src_layer:
         for dest_neuron in dest_layer:
             # Do not add Latex objects
-            if not isinstance(src_neuron, MathTex) and not isinstance(dest_neuron, MathTex):
+            if not isinstance(src_neuron, Tex) and not isinstance(dest_neuron, Tex):
                 edge = create_edge(src_neuron, dest_neuron)
                 array.append(edge)
     edges.add(*array)
@@ -118,7 +118,7 @@ class LinearVisual(nnLayer):
         # Add an ellispe and text containing true size if we had to cap the number of neurons shown
         if num_neurons > size:
             dots = Tex(' . \n\n \\vspace{-.4em} \n\n .')
-            true_size = MathTex("{}".format(num_neurons))
+            true_size = Tex("${}$".format(num_neurons))
             true_size.height = self.neuron_radius
             # Move the neurons so they do not cover the Latex
             VGroup(*neurons [:len(neurons) // 2]).next_to(dots, UP, self.neuron_radius)
@@ -149,7 +149,6 @@ class NetVisual(nnLayer):
             else:
                 layer_type = "hidden"
             # Case for linear layer
-            print(layer_type)
             if layer_name == "Linear":
                 self.visuals.append(LinearVisual(input_size[0], layer_type=layer_type))
                 # Add an additional output layer if this is our final layer
@@ -160,7 +159,8 @@ class NetVisual(nnLayer):
         # Append each neuron to temp
         for layer in self.visuals:
             for neuron in layer:
-                temp.append(neuron)
+                if not isinstance(neuron, Tex):
+                    temp.append(neuron)
         self.neurons = VGroup(*temp) 
         
         # Connect all the layers
@@ -205,7 +205,7 @@ class nnVisual(Scene):
             layer_copy = copy.deepcopy(original_layer)
             self.flash_layer(original_layer, outputs[0], self.net_visual.hid_color)
             self.play(Transform(layer_copy, original_layer))
-            self.wait(0.5)
+            self.wait(0.1)
             
             
         # Unflash all layers
@@ -227,10 +227,9 @@ class nnVisual(Scene):
 
     # Flashes neurons or edges if they pass a threshold
     def flash_layer(self, layer, values, color, threshold=0):
-        print("dfasdf", values.shape)
         for index, mobject in enumerate(layer):
             value = values[index].item()
-            if value >= threshold:
+            if value >= threshold and not isinstance(mobject, Tex):
                 mobject.set_fill(color=color, opacity=value)
             
 

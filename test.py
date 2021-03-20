@@ -72,7 +72,7 @@ optimizer = torch.optim.SGD(net.parameters(), lr=0.01)
 n_epochs = 30  # suggest training between 20-50 epochs
 
 net.train() # prep model for training
-
+'''
 for epoch in range(n_epochs):
     # monitor training loss
     train_loss = 0.0
@@ -102,5 +102,5 @@ for epoch in range(n_epochs):
         epoch+1, 
         train_loss
         ))
-
+'''
 
