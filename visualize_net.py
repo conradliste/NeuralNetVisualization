@@ -7,6 +7,7 @@ from collections import OrderedDict
 from extract_layers import extract_layers
 import numpy as np
 import time
+import copy
 import math
 
 # Configuration
@@ -64,9 +65,7 @@ class LinearVisual(nnLayer):
         else:
             self.max_neurons_shown = 2 ** 30
         # Create the input and output layers
-        self.layer = self.create_layer(size, layer_type)
-        # Add the edges, input layer, and output layer
-        self.add(self.layer)
+        self.create_layer(size, layer_type)
 
     # Helper to calculate the max number of neurons
     def calc_max_neurons(self):
@@ -89,7 +88,6 @@ class LinearVisual(nnLayer):
              
     # Creates a single layer of radial neurons
     def create_layer(self, size, layer_type='input'):
-        layer = VGroup()
         num_neurons = size
         # Cap the shwon layer size at the max neurons shown
         if size > self.max_neurons_shown:
@@ -126,19 +124,18 @@ class LinearVisual(nnLayer):
             VGroup(*neurons [:len(neurons) // 2]).next_to(dots, UP, self.neuron_radius)
             VGroup(*neurons [len(neurons) // 2:]).next_to(dots, DOWN, self.neuron_radius)
 
-            layer.add(true_size)
-            layer.add(dots)
+            self.add(true_size)
+            self.add(dots)
             
-        layer.add(*neurons)
-        return layer
+        self.add(*neurons)
 
         
 class NetVisual(nnLayer):
     def __init__(self, model, input_shape, device=torch.device("cuda:0")):
         super(NetVisual, self).__init__()
         self.layers_dict = extract_layers(model, input_shape, device=device)
-        self.net_group = VGroup()
         self.visuals = []
+        self.edge_group = []
         # Create all the layers
         for index, layer_key in enumerate(self.layers_dict):
             layer = self.layers_dict[layer_key]
@@ -158,37 +155,86 @@ class NetVisual(nnLayer):
                 # Add an additional output layer if this is our final layer
                 if index == len(self.layers_dict) - 1:
                     self.visuals.append(LinearVisual(output_size[0], layer_type="output"))
+  
+        temp = []
+        # Append each neuron to temp
+        for layer in self.visuals:
+            for neuron in layer:
+                temp.append(neuron)
+        self.neurons = VGroup(*temp) 
         
         # Connect all the layers
         self.visuals[0].to_edge(LEFT)
         if len(self.visuals) == 1:
-            self.net_group.add(self.visuals[0]) 
+            self.add(self.visuals[0]) 
         else:
             for i in range(1, len(self.visuals)):
                 prev = self.visuals[i-1]
                 cur = self.visuals[i]
                 # Move the cur layer to right of prev layer
-                cur.next_to(prev.layer, RIGHT, self.layer_dist)
+                cur.next_to(prev, RIGHT, self.layer_dist)
                 if isinstance(prev, LinearVisual) and isinstance(cur, LinearVisual):
-                    edges = connect_lin_layers(prev.layer, cur.layer)
-                    self.net_group.add(*[edges, prev, cur])
+                    edges = connect_lin_layers(prev, cur)
+                    self.edge_group.append(edges)
+                    self.add(*[edges, prev, cur])
+    
+
         
 class nnVisual(Scene):
     
     def __init__(self, net_visual):
         super(nnVisual, self).__init__()
         self.net_visual = net_visual
-        #self.net_visual.scale(0.2)
+        self.flash_threshold = 0
     
     # Visualizes the forward pass
     def forward_visual(self):
-        layers_dict = self.net_visual.layers_dict
-        for index, layer_key in enumerate(layers_dict):
-            layer = layers_dict[layer_key]
+        anims = []
+        # Visualize the first input layer
+        keys = list(self.net_visual.layers_dict.keys())
+        layer = self.net_visual.layers_dict[keys[0]]
+        self.flash_layer(self.net_visual.visuals[0], layer["input"][0][0], self.net_visual.in_color)
+        # Loop through each layer
+        for index, layer_key in enumerate(self.net_visual.layers_dict):
+            layer = self.net_visual.layers_dict[layer_key]
             weights = layer["weights"]
+            outputs = layer["output"]
+            # Flash the layer
+            #self.flash_layer(self.net_visual.edge_group[index], weights)
+            original_layer = self.net_visual.visuals[index+1]
+            layer_copy = copy.deepcopy(original_layer)
+            self.flash_layer(original_layer, outputs[0], self.net_visual.hid_color)
+            self.play(Transform(layer_copy, original_layer))
+            self.wait(0.5)
             
-                
-        
+            
+        # Unflash all layers
+        neuron_copy = copy.deepcopy(self.net_visual.neurons)
+        self.unflash_layers()
+        self.play(Transform(neuron_copy, self.net_visual.neurons))
+        self.wait(1)
+        #original
+        #self.play(Transform())
+    
+
+
+
+    # Unflashes layers
+    def unflash_layers(self):
+        for neuron in self.net_visual.neurons:
+            neuron.set_fill(opacity=1, color=BLACK)
+        return 
+
+    # Flashes neurons or edges if they pass a threshold
+    def flash_layer(self, layer, values, color, threshold=0):
+        print("dfasdf", values.shape)
+        for index, mobject in enumerate(layer):
+            value = values[index].item()
+            if value >= threshold:
+                mobject.set_fill(color=color, opacity=value)
+            
+
+
 
     def backward_visual(self):
         pass
@@ -198,7 +244,7 @@ class nnVisual(Scene):
         self.wait(1)
         
         # Animate
-        #self.forward_visual()
+        self.forward_visual()
         #self.play(ShowCreation(square))
         #self.play(Transform(square, circle))
         #self.play(FadeOut(square))

@@ -54,6 +54,8 @@ def extract_layers(model, init_input_size, device=torch.device('cuda:0'), batch_
                 layer_dict[layer_key]["bias"] = layer.bias
 
             layer_dict[layer_key]["num_params"] = num_params
+            layer_dict[layer_key]["input"] = inp
+            layer_dict[layer_key]["output"] = out
             
         # Register the hook if it is just one module
         if not isinstance(layer, nn.Sequential) and not isinstance(layer, nn.ModuleList) and not layer == model:
