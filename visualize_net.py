@@ -9,6 +9,7 @@ import numpy as np
 import time
 import copy
 import math
+from more_geometry import BGrid
 
 # Configuration
 config.max_files_cached = 10
@@ -54,6 +55,45 @@ class nnLayer(VGroup):
         self.arrow_tip_size = 0.1
         self.layer_dist = self.neuron_radius * 2  * 7
         self.border_buffer = self.neuron_radius
+
+
+
+class ConvVisual(nnLayer):
+    def __init__(self, input_shape, output_channels, kernel_size, stride, padding=0, plain=False):
+        super(ConvVisual, self).__init__()
+        self.input_shape = input_shape
+        self.output_channels = output_channels
+        self.kernel_size = kernel_size
+        self.stride = stride
+        self.padding = padding
+        self.base_shift = 0.05
+        self.base_scale = 0.1
+        self.plain = plain
+        self.create_layer()
+
+    def create_layer(self):
+        depth = self.input_shape[0]
+        height = self.input_shape[1]
+        width = self.input_shape[2]
+        if self.plain:
+            for i in range(0, depth):
+                s = Square(
+                    fill_color=BLUE,
+                    side_length=height,
+                    stroke_width=1,
+                    stroke_color=WHITE,
+                    fill_opacity=1
+                )
+                s.scale(self.base_scale)
+                s.shift(np.array((-(depth - 1 - i) * self.base_shift, (depth - 1 - i) * self.base_shift, 0.0)))
+                self.add(s)
+        else:
+            for i in range(0, depth):
+                b = BGrid(height, width, fill_color=BLUE, stroke_width=0.8)
+                b.scale(self.base_scale)
+                # Shift it up and to the left based on whichever feature map we're currently creating
+                b.shift(np.array((-(depth - 1 - i) * self.base_shift, (depth - 1 - i) * self.base_shift, 0.0)))
+                self.add(b)
         
 
 class LinearVisual(nnLayer):
