@@ -41,10 +41,10 @@ class nnLayer(VGroup):
     def __init__(self):
         super(nnLayer, self).__init__()
         self.neuron_radius = 0.155
-        self.in_color =  WHITE
+        self.in_color =  ORANGE
         self.hid_color = WHITE
         self.out_color = BLUE
-        self.neuron_stroke_width = self.neuron_radius / 5.0
+        self.neuron_stroke_width = 1
         self.neuron_dist = self.neuron_radius 
         self.neuron_opacity = 1
         self.edge_color = LIGHT_GREY
@@ -104,7 +104,7 @@ class LinearVisual(nnLayer):
                 stroke_color= self.get_stroke_color(layer_type), 
                 stroke_width= self.neuron_stroke_width,
                 stroke_opacity=1,
-                fill_color = self.get_stroke_color(layer_type),
+                fill_color = BLACK,
                 fill_opacity = self.neuron_opacity
             )
             offset = np.array(np.array((0.0, (mid - i) * self.neuron_dist, 0.0)))
@@ -137,7 +137,7 @@ class NetVisual(nnLayer):
     def __init__(self, model, input_shape, device=torch.device("cuda:0")):
         super(NetVisual, self).__init__()
         self.layers_dict = extract_layers(model, input_shape, device=device)
-        self.net_visual = VGroup()
+        self.net_group = VGroup()
         self.visuals = []
         # Create all the layers
         for index, layer_key in enumerate(self.layers_dict):
@@ -146,18 +146,23 @@ class NetVisual(nnLayer):
             output_size = layer["output_shape"]
             layer_name = layer_key.split("-")[0]
             print(layer_key)
-
+            # Set layer type
+            if index == 0:
+                layer_type = "input"
+            else:
+                layer_type = "hidden"
             # Case for linear layer
+            print(layer_type)
             if layer_name == "Linear":
-                self.visuals.append(LinearVisual(input_size[0]))
-                # Add the output layer if this is our final layer
+                self.visuals.append(LinearVisual(input_size[0], layer_type=layer_type))
+                # Add an additional output layer if this is our final layer
                 if index == len(self.layers_dict) - 1:
                     self.visuals.append(LinearVisual(output_size[0], layer_type="output"))
-            
-        self.visuals[0].to_edge(LEFT)
+        
         # Connect all the layers
+        self.visuals[0].to_edge(LEFT)
         if len(self.visuals) == 1:
-            self.net_visual.add(self.visuals[0]) 
+            self.net_group.add(self.visuals[0]) 
         else:
             for i in range(1, len(self.visuals)):
                 prev = self.visuals[i-1]
@@ -166,7 +171,7 @@ class NetVisual(nnLayer):
                 cur.next_to(prev.layer, RIGHT, self.layer_dist)
                 if isinstance(prev, LinearVisual) and isinstance(cur, LinearVisual):
                     edges = connect_lin_layers(prev.layer, cur.layer)
-                    self.net_visual.add(*[edges, prev, cur])
+                    self.net_group.add(*[edges, prev, cur])
         
 class nnVisual(Scene):
     
@@ -175,19 +180,25 @@ class nnVisual(Scene):
         self.net_visual = net_visual
         #self.net_visual.scale(0.2)
     
-    def animate_network(self):
+    # Visualizes the forward pass
+    def forward_visual(self):
+        layers_dict = self.net_visual.layers_dict
+        for index, layer_key in enumerate(layers_dict):
+            layer = layers_dict[layer_key]
+            weights = layer["weights"]
+            
+                
+        
+
+    def backward_visual(self):
         pass
         
     def construct(self):
         self.add(self.net_visual)
-        #self.net_visual.center()
-        #self.net_visual.scale(0.1)
-        #self.play(ScaleInPlace(self.net_visual, 0.2))
         self.wait(1)
-
-
         
         # Animate
+        #self.forward_visual()
         #self.play(ShowCreation(square))
         #self.play(Transform(square, circle))
         #self.play(FadeOut(square))
