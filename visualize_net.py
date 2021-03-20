@@ -22,13 +22,13 @@ def connect_lin_layers(src_layer, dest_layer):
         for dest_neuron in dest_layer:
             # Do not add Latex objects
             if not isinstance(src_neuron, Tex) and not isinstance(dest_neuron, Tex):
-                edge = create_edge(src_neuron, dest_neuron)
+                edge = create_edge(src_neuron, dest_neuron, buffer=src_layer.neuron_radius)
                 array.append(edge)
     edges.add(*array)
     return edges 
 
 # Creates an edge between two neurons
-def create_edge(src, dest, show_arrow=False, buffer=0, edge_color=LIGHT_GREY, edge_width=0.3):
+def create_edge(src, dest, show_arrow=False, buffer=0, edge_color=LIGHT_GREY, edge_width=0.2):
     return Line(
         src.get_center(),
         dest.get_center(),
@@ -52,7 +52,7 @@ class nnLayer(VGroup):
         self.edge_stroke_width = 2
         self.edge_prop_time = 1
         self.arrow_tip_size = 0.1
-        self.layer_dist = self.neuron_radius * 2  * 4
+        self.layer_dist = self.neuron_radius * 2  * 7
         self.border_buffer = self.neuron_radius
         
 
@@ -115,6 +115,7 @@ class LinearVisual(nnLayer):
             # Add
             neuron.shift(offset)
             neurons.append(neuron)
+
         # Add an ellispe and text containing true size if we had to cap the number of neurons shown
         if num_neurons > size:
             dots = Tex(' . \n\n \\vspace{-.4em} \n\n .')
@@ -128,14 +129,19 @@ class LinearVisual(nnLayer):
             self.add(dots)
             
         self.add(*neurons)
+    
+
 
         
 class NetVisual(nnLayer):
     def __init__(self, model, input_shape, device=torch.device("cuda:0")):
         super(NetVisual, self).__init__()
+        self.model = model
+        self.input_shape = input_shape
+        self.device = device
         self.layers_dict = extract_layers(model, input_shape, device=device)
         self.visuals = []
-        self.edge_group = []
+        self.edge_group = VGroup()
         # Create all the layers
         for index, layer_key in enumerate(self.layers_dict):
             layer = self.layers_dict[layer_key]
@@ -156,13 +162,14 @@ class NetVisual(nnLayer):
                     self.visuals.append(LinearVisual(output_size[0], layer_type="output"))
   
         temp = []
-        # Append each neuron to temp
+        # Create copies of each neuron and add to the vgroup
         for layer in self.visuals:
             for neuron in layer:
                 if not isinstance(neuron, Tex):
                     temp.append(neuron)
-        self.neurons = VGroup(*temp) 
+        self.neurons = VGroup(*temp)
         
+        temp = []
         # Connect all the layers
         self.visuals[0].to_edge(LEFT)
         if len(self.visuals) == 1:
@@ -175,19 +182,21 @@ class NetVisual(nnLayer):
                 cur.next_to(prev, RIGHT, self.layer_dist)
                 if isinstance(prev, LinearVisual) and isinstance(cur, LinearVisual):
                     edges = connect_lin_layers(prev, cur)
-                    self.edge_group.append(edges)
+                    temp.append(edges)
                     self.add(*[edges, prev, cur])
+        self.edge_group.add(*temp)
     
-
+    def update_layers_dict(self, new_inputs):
+        self.layers_dict = extract_layers(self.model, self.input_shape, inputs=new_inputs, device=self.device)
         
-class nnVisual(Scene):
+class nnVisual(MovingCameraScene):
     
     def __init__(self, net_visual):
         super(nnVisual, self).__init__()
         self.net_visual = net_visual
         self.flash_threshold = 0
     
-    # Visualizes the forward pass
+    # Visualizes the forward propagtation
     def forward_visual(self):
         anims = []
         # Visualize the first input layer
@@ -197,50 +206,61 @@ class nnVisual(Scene):
         # Loop through each layer
         for index, layer_key in enumerate(self.net_visual.layers_dict):
             layer = self.net_visual.layers_dict[layer_key]
+            # Grab weights and outputs
             weights = layer["weights"]
             outputs = layer["output"]
-            # Flash the layer
-            #self.flash_layer(self.net_visual.edge_group[index], weights)
+            layer_name = layer_key.split("-")[0]
+            # Copy layer and edges for animation
             original_layer = self.net_visual.visuals[index+1]
             layer_copy = copy.deepcopy(original_layer)
-            self.flash_layer(original_layer, outputs[0], self.net_visual.hid_color)
-            self.play(Transform(layer_copy, original_layer))
-            self.wait(0.1)
-            
-            
+            original_edges = self.net_visual.edge_group[index]
+            edges_copy = copy.deepcopy(original_edges)
+            # Flash the layer
+            print("Num Edges: ", len(self.net_visual.edge_group[index]))
+            print("Num Weights: ", len(weights[0]))
+            # Forward animation for linear layer
+            if layer_name == "Linear":
+                weights = torch.flatten(weights)
+                self.flash_layer(original_edges, weights, self.net_visual.edge_color)
+                self.flash_layer(original_layer, outputs[0], self.net_visual.hid_color)
+                self.play(Transform(edges_copy, original_edges))
+                self.play(Transform(layer_copy, original_layer))
+
         # Unflash all layers
         neuron_copy = copy.deepcopy(self.net_visual.neurons)
+        edges_copy = copy.deepcopy(self.net_visual.edge_group)
         self.unflash_layers()
         self.play(Transform(neuron_copy, self.net_visual.neurons))
-        self.wait(1)
-        #original
-        #self.play(Transform())
+        self.play(Transform(edges_copy, self.net_visual.edge_group))
+        return anims
     
-
-
-
     # Unflashes layers
     def unflash_layers(self):
         for neuron in self.net_visual.neurons:
             neuron.set_fill(opacity=1, color=BLACK)
+        for edge in self.net_visual.edge_group:
+            edge.set_fill(opacity=1, color=self.net_visual.edge_color)
         return 
 
     # Flashes neurons or edges if they pass a threshold
     def flash_layer(self, layer, values, color, threshold=0):
         for index, mobject in enumerate(layer):
-            value = values[index].item()
+            value = abs(values[index].item())
             if value >= threshold and not isinstance(mobject, Tex):
                 mobject.set_fill(color=color, opacity=value)
             
-
-
-
+    # Visualizes backprop
     def backward_visual(self):
         pass
-        
+
+    # Visualizes dropout
+    def dropout_visual(self, layer):
+        pass
+    
     def construct(self):
+        self.camera.frame.move_to(self.net_visual.get_center())
+        self.camera.frame.scale(1.1) 
         self.add(self.net_visual)
-        self.wait(1)
         
         # Animate
         self.forward_visual()

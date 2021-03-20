@@ -16,12 +16,9 @@ class Net(nn.Module):
         self.conv1 = nn.Conv2d(1, 6, 5)
         self.pool = nn.MaxPool2d(2, 2)
         self.conv2 = nn.Conv2d(6, 16, 5)
-        self.fc1 = nn.Linear(16 * 4 * 4, 120)
+        self.fc1 = nn.Linear(784, 120)
         self.fc2 = nn.Linear(120, 84)
-        self.fc3 = nn.Linear(84, 20)
-        self.fc4 = nn.Linear(20, 16)
-        self.fc5 = nn.Linear(16, 8)
-        self.fc6 = nn.Linear(8, 4)
+        self.fc3 = nn.Linear(84, 10)
 
     def forward(self, x):
         #x = self.pool(F.relu(self.conv1(x)))
@@ -30,10 +27,7 @@ class Net(nn.Module):
         x = F.relu(self.fc1(x))
         x = F.relu(self.fc2(x))
         x = self.fc3(x)
-        x = self.fc4(x)
-        x = self.fc5(x)
-        x = self.fc6(x)
-        return x
+        return F.log_softmax(x, dim=1)
 
 # number of subprocesses to use for data loading
 num_workers = 0
@@ -55,11 +49,14 @@ train_loader = torch.utils.data.DataLoader(train_data, batch_size=batch_size,
 test_loader = torch.utils.data.DataLoader(test_data, batch_size=batch_size, 
     num_workers=num_workers)
 
+# L
 net = Net()
-viz_net = NetVisual(net, [256], device=torch.device("cpu"))
+viz_net = NetVisual(net, [784], device=torch.device("cpu"))
 viz = nnVisual(viz_net)
-viz.render()
-open_file("./media/videos/1080p60/nnVisual.mp4")
+layers_dict = viz_net.layers_dict
+#viz.render()
+#open_file("./media/videos/1080p60/nnVisual.mp4")
+
 
 ## Specify loss and optimization functions
 # specify loss function
@@ -72,7 +69,7 @@ optimizer = torch.optim.SGD(net.parameters(), lr=0.01)
 n_epochs = 30  # suggest training between 20-50 epochs
 
 net.train() # prep model for training
-'''
+
 for epoch in range(n_epochs):
     # monitor training loss
     train_loss = 0.0
@@ -83,8 +80,9 @@ for epoch in range(n_epochs):
     for data, target in train_loader:
         # clear the gradients of all optimized variables
         optimizer.zero_grad()
+        data_flat = torch.flatten(data, start_dim=1)
         # forward pass: compute predicted outputs by passing inputs to the model
-        output = net(data)
+        output = net(data_flat)
         # calculate the loss
         loss = criterion(output, target)
         # backward pass: compute gradient of the loss with respect to model parameters
@@ -92,15 +90,17 @@ for epoch in range(n_epochs):
         # perform a single optimization step (parameter update)
         optimizer.step()
         # update running training loss
-        train_loss += loss.item()*data.size(0)
+        train_loss += loss.item()*data_flat.size(0)
+        viz_net.update_layers_dict(data_flat)
+        
         
     # print training statistics 
     # calculate average loss over an epoch
     train_loss = train_loss/len(train_loader.dataset)
-
+    print(net.parameters())
+    print(viz_net.layers_dict["Linear-0"]["weights"])
     print('Epoch: {} \tTraining Loss: {:.6f}'.format(
         epoch+1, 
         train_loss
         ))
-'''
 

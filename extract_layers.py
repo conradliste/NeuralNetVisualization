@@ -11,7 +11,7 @@ from collections import OrderedDict
 # Params:
 # model: the neural net
 # init_input_size (tuple): input shape to the model not including batch size
-def extract_layers(model, init_input_size, device=torch.device('cuda:0'), batch_size=2):
+def extract_layers(model, init_input_size, inputs=None, device=torch.device('cuda:0'), batch_size=2):
     
     if not isinstance(model, nn.Module):
         raise TypeError("model must be of typer nn.Module")
@@ -66,11 +66,14 @@ def extract_layers(model, init_input_size, device=torch.device('cuda:0'), batch_
         dtype = torch.cuda.FloatTensor
     else:
         dtype = torch.FloatTensor
-
-    # Creates a list of batched data for each dimension
-    x = [torch.rand(batch_size, *in_size).type(dtype).to(device=device) 
-            for in_size in [init_input_size]]
     
+    if inputs is None:
+        #Creates a list of batched data for each dimension
+        x = [torch.rand(batch_size, *in_size).type(dtype).to(device=device) 
+                for in_size in [init_input_size]]
+    else:
+        x = [inputs]
+
     layer_dict = OrderedDict()
     hooks = []
 
